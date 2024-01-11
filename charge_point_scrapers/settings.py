@@ -1,4 +1,4 @@
-# Scrapy settings for ev_charge_points project
+# Scrapy settings for charge_point_scrapers project
 #
 # For simplicity, this file contains only settings considered important or
 # commonly used. You can find more settings consulting the documentation:
@@ -7,17 +7,17 @@
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
-BOT_NAME = "ev_charge_points"
+BOT_NAME = "charge_point_scrapers"
 
-SPIDER_MODULES = ["ev_charge_points.spiders"]
-NEWSPIDER_MODULE = "ev_charge_points.spiders"
+SPIDER_MODULES = ["charge_point_scrapers.spiders"]
+NEWSPIDER_MODULE = "charge_point_scrapers.spiders"
 
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
-#USER_AGENT = "ev_charge_points (+http://www.yourdomain.com)"
+#USER_AGENT = "charge_point_scrapers (+http://www.yourdomain.com)"
 
 # Obey robots.txt rules
-ROBOTSTXT_OBEY = True
+ROBOTSTXT_OBEY = False
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
 #CONCURRENT_REQUESTS = 32
@@ -45,14 +45,19 @@ ROBOTSTXT_OBEY = True
 # Enable or disable spider middlewares
 # See https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 #SPIDER_MIDDLEWARES = {
-#    "ev_charge_points.middlewares.EvChargePointsSpiderMiddleware": 543,
+#    "charge_point_scrapers.middlewares.EvChargePointsSpiderMiddleware": 543,
 #}
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-#DOWNLOADER_MIDDLEWARES = {
-#    "ev_charge_points.middlewares.EvChargePointsDownloaderMiddleware": 543,
-#}
+# DOWNLOADER_MIDDLEWARES = {
+#     'charge_point_scrapers.middlewares.EvChargePointsDownloaderMiddleware': 543,
+#     'scrapy_proxies.RandomProxy': 100,
+#     'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 110,
+# }
+
+RETRY_TIMES = 3
+RETRY_HTTP_CODES = [500, 503, 502, 504, 400, 403, 404, 408]
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -62,20 +67,17 @@ ROBOTSTXT_OBEY = True
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    "ev_charge_points.pipelines.EvChargePointsPipeline": 300,
-#}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
-#AUTOTHROTTLE_ENABLED = True
+AUTOTHROTTLE_ENABLED = True
 # The initial download delay
-#AUTOTHROTTLE_START_DELAY = 5
+AUTOTHROTTLE_START_DELAY = 0
 # The maximum download delay to be set in case of high latencies
-#AUTOTHROTTLE_MAX_DELAY = 60
+AUTOTHROTTLE_MAX_DELAY = 5
 # The average number of requests Scrapy should be sending in parallel to
 # each remote server
-#AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
+AUTOTHROTTLE_TARGET_CONCURRENCY = 50.0
 # Enable showing throttling stats for every response received:
 #AUTOTHROTTLE_DEBUG = False
 
@@ -91,3 +93,5 @@ ROBOTSTXT_OBEY = True
 REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = "utf-8"
+
+# PROXY_LIST = 'proxies.txt'

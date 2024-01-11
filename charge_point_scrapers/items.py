@@ -6,7 +6,12 @@
 import scrapy
 
 
-class EvChargePointsItem(scrapy.Item):
-    # define the fields for your item here like:
-    # name = scrapy.Field()
+class ZapMapRawPoint(scrapy.Item):
+    token = scrapy.Field(serializer=str)
+    legacy_id = scrapy.Field(serializer=int)
+    uuid = scrapy.Field(serializer=str)
+    created_at = scrapy.Field(serializer=str)
+
+
+class ZapMapFinalPoint(scrapy.Item):
     pass
