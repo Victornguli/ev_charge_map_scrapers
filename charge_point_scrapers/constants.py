@@ -1,4 +1,6 @@
-# Info marker ids
+import enum
+
+# Zap Map Extra detail's Info marker ids
 FULL_ADDRESS_MARKER = 550
 DATE_CREATED_MARKER = 511
 PARKING_FEE_MARKER = 560
@@ -6,13 +8,9 @@ CHARGING_FEE_MARKER = 568
 LOCATION_URL_MARKER = 547
 
 # LAT/LONG limits for UK map
-WESTERN_MOST_LONGITUDE_UK = -1
-# WESTERN_MOST_LONGITUDE_UK = -8
-# EASTERN_MOST_LONGITUDE_UK = 2
-EASTERN_MOST_LONGITUDE_UK = -1
-# NORTHERN_MOST_LATITUDE_UK = 60
-NORTHERN_MOST_LATITUDE_UK = 50
-# SOUTHERN_MOST_LATITUDE_UK = 49
+WESTERN_MOST_LONGITUDE_UK = -8
+EASTERN_MOST_LONGITUDE_UK = 2
+NORTHERN_MOST_LATITUDE_UK = 60
 SOUTHERN_MOST_LATITUDE_UK = 49
 
 BOUNDING_BOX_FILTER_URL = 'https://api.zap-map.io/locations/v1/search/bounding-box?' \
@@ -53,4 +51,37 @@ ZAP_MAP_REQUEST_HEADERS = {
     'Referer': 'https://map.zap-map.com/'
 }
 
+CO_CHARGER_REQUEST_HEADERS = {
+    # 'X-Titanium-Id': 'c03d1814-6420-4b83-82c5-dba0daf9df76',
+    'X-Requested-With': 'XMLHttpRequest',
+    'User-Agent': 'Appcelerator Titanium/11.1.1 (M2101K6G; Android API Level: 33; en-GB;)',
+    'Content-Type': '',
+    'Connection': 'keep-alive',
+    # 'Cookie': 'PHPSESSID=c93a2518c4a218d61a399bb772bf3644'
+}
+
 CHARGE_POINT_DETAILS_ENDPOINT = 'https://api.zap-map.io/locations/v1/location/{uuid}'
+CHARGE_POINT_EXTRA_DETAILS_ENDPOINT = 'https://api.zap-map.com/v5/chargepoints/location/{legacy_id}/info'
+ZAP_MAP_WEB_CLIENT_API_KEY = '4Yn23Fbs2DeJkZSRMq3gm5EbXhITZ5N9'
+ZAP_MAP_WEB_CLIENT_VERSION = '4.9'
+ZAP_MAP_V5_POINT_INFO_HEADERS = {
+    'X-Api-Key': ZAP_MAP_WEB_CLIENT_API_KEY,
+    'client-version': ZAP_MAP_WEB_CLIENT_VERSION,
+    'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="119", "Google Chrome";v="119"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': 'Linux'
+}
+
+XLSX_OUT_FILE = 'ChargingPoints ZapMap-CoCharger.xlsx'
+
+
+class SheetNames(enum.Enum):
+    CO_CHARGER = 'Co Charger'
+    ZAP_MAP = 'Zap Map'
+
+
+class EnvKeys(enum.Enum):
+    CO_CHARGER_EMAIL = 'CO_CHARGER_EMAIL'
+    CO_CHARGER_PASSWORD = 'CO_CHARGER_PASSWORD'
+    CO_CHARGER_IGNORE_20_MILE_RADIUS = 'CO_CHARGER_IGNORE_20_MILE_RADIUS'
+    CO_CHARGER_TOKEN = 'CO_CHARGER_TOKEN'

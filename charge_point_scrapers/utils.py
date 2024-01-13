@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import re
 import os
 import json
@@ -11,8 +12,12 @@ from openpyxl.styles import NamedStyle, Font
 from openpyxl.utils.exceptions import IllegalCharacterError
 from openpyxl.utils import get_column_letter
 from pathlib import PosixPath, Path
+from dotenv import load_dotenv
+from geopy import distance
 
-from charge_point_scrapers.constants import ZAP_MAP_REQUEST_HEADERS
+from charge_point_scrapers.constants import ZAP_MAP_REQUEST_HEADERS, CO_CHARGER_REQUEST_HEADERS, SheetNames, EnvKeys
+
+load_dotenv()
 
 
 def copy_headers(original_headers, update_data: Union[dict, None]) -> dict:
@@ -49,6 +54,30 @@ def remove_control_characters(cells):
             cell = re.sub(illegal_chars, ' ', str(cell))
         clean_strings.append(cell)
     return clean_strings
+
+
+def filter_co_charger_radius(data):
+    cities = {
+        'Peterborough': (52.573552730184225, -0.25514820758860557),
+        'Oxfordshire': (51.74383552545767, -1.2459381017248494),
+        'Wimbledon': (51.42990367179369, -0.22438352969388295),
+        'Bristol': (51.455539352076414, -2.5872982645856237),
+        'Birmingham': (52.494308381894776, -1.8718849325622116),
+        'Manchester': (53.48602564820113, -2.2399557350492376),
+        'Milton Keynes': (52.040187985429135, -0.7580044689136244),
+        'Reading': (51.45420910597151, -0.9802584269217173)
+    }
+    matching_hosts = {}
+    for host in data:
+        for city, city_cords in cities.items():
+            geo_dist = distance.distance(city_cords, (float(host['latitude']), float(host['longitude'])))
+            if geo_dist.miles < 21.0:
+                if host['id'] in matching_hosts:
+                    continue
+                else:
+                    matching_hosts[host['id']] = host
+
+    return matching_hosts
 
 
 def export_to_excel(
@@ -94,6 +123,10 @@ def export_to_excel(
         spider.logger.exception(ex)
         return
 
+    ignore_radius_filter = os.getenv(EnvKeys.CO_CHARGER_IGNORE_20_MILE_RADIUS.value, 0)
+    if sheet_name == SheetNames.CO_CHARGER.value and not ignore_radius_filter:
+        data = filter_co_charger_radius(data)
+
     for row in data:
         row_val = []
         for idx, key in enumerate(col_mapping, start=1):
@@ -123,3 +156,46 @@ def export_to_excel(
 
     workbook.save(filename=excel_file_path)
 
+
+def authenticate_co_charger(callback):
+    co_charger_email = os.getenv(EnvKeys.CO_CHARGER_EMAIL.value)
+    co_charger_password = os.getenv(EnvKeys.CO_CHARGER_PASSWORD.value)
+
+    if not co_charger_email or not co_charger_password:
+        raise Exception('Username or password not set. Update the values in .env file')
+
+    login_payload = {
+        "email": co_charger_email,
+        "password": hashlib.md5(co_charger_password.encode('utf-8')).hexdigest(),
+        "platform": "Platform: android - OS Version: 13 - Device: M2101K6G"
+    }
+
+    return Request(
+        'https://api.co-charger.com/login',
+        method='POST',
+        headers=CO_CHARGER_REQUEST_HEADERS,
+        body=json.dumps(login_payload),
+        callback=callback
+    )
+
+
+def fmt_co_charger_value(raw_value):
+    if not raw_value:
+        return ''
+    elif raw_value.strip() == 'null':
+        return ''
+
+    return raw_value.strip() or ''
+
+
+def update_co_charger_auth_token(token):
+    root_dir = Path(__file__).parent.parent
+    current_lines = [
+        f"{env_key.name}={os.getenv(env_key.value)}\n" for env_key in EnvKeys
+        if env_key.name != EnvKeys.CO_CHARGER_TOKEN.name
+    ]
+    current_lines.append(f'{EnvKeys.CO_CHARGER_TOKEN.name}={token}\n')
+
+    with open(root_dir / '.env', 'w+', encoding='utf-8') as f:
+        for line in current_lines:
+            f.write(line)

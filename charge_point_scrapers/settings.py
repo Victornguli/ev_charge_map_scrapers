@@ -93,5 +93,3 @@ AUTOTHROTTLE_TARGET_CONCURRENCY = 50.0
 REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = "utf-8"
-
-# PROXY_LIST = 'proxies.txt'

@@ -13,21 +13,25 @@ from charge_point_scrapers.constants import (
     SOUTHERN_MOST_LATITUDE_UK,
     BOUNDING_BOX_FILTER_URL,
     ZAP_MAP_REQUEST_HEADERS,
-    CHARGE_POINT_DETAILS_ENDPOINT
+    CHARGE_POINT_DETAILS_ENDPOINT, CHARGE_POINT_EXTRA_DETAILS_ENDPOINT, ZAP_MAP_V5_POINT_INFO_HEADERS,
+    FULL_ADDRESS_MARKER, LOCATION_URL_MARKER
 )
 from charge_point_scrapers.utils import copy_headers, request_zap_auth_token, parse_date
 
 
 class ZapMapsSpider(scrapy.Spider):
     name = "zap_maps"
-    allowed_domains = ['api.zap-map.io', 'auth.zap-map.com']
+    allowed_domains = ['api.zap-map.io', 'auth.zap-map.com', 'api.zap-map.com']
     custom_settings = {
+        'RETRY_HTTP_CODES': [500, 502, 503, 504, 522, 524, 429],
+        'RETRY_TIMES': 3,
         'ITEM_PIPELINES': {
-            'charge_point_scrapers.pipelines.ZapMapsPipeline': 300,
+            'charge_point_scrapers.pipelines.ZapMapsPipeline': 100,
             'charge_point_scrapers.pipelines.ZapMapsOutPipeline': 99999,
         }
     }
     auth_headers = {}
+    extra_detail_headers = {}
 
     def start_requests(self):
         self.scraped_points = {}
@@ -54,6 +58,10 @@ class ZapMapsSpider(scrapy.Spider):
         self.auth_headers = copy_headers(
             ZAP_MAP_REQUEST_HEADERS,
             {'Authorization': f"Bearer {token}", 'TE': 'trailers'}
+        )
+        self.extra_detail_headers = copy_headers(
+            ZAP_MAP_REQUEST_HEADERS,
+            ZAP_MAP_V5_POINT_INFO_HEADERS
         )
         for latitude in range(SOUTHERN_MOST_LATITUDE_UK, NORTHERN_MOST_LATITUDE_UK + 1):
             for longitude in range(WESTERN_MOST_LONGITUDE_UK, EASTERN_MOST_LONGITUDE_UK + 1):
@@ -93,7 +101,7 @@ class ZapMapsSpider(scrapy.Spider):
                         CHARGE_POINT_DETAILS_ENDPOINT.format(uuid=point['uuid']),
                         headers=self.auth_headers,
                         callback=self.parse_charge_point_details,
-                        cb_kwargs={'date_created': point['created_at']}
+                        cb_kwargs={'date_created': point['created_at'], 'legacy_id': point['legacy_id']}
                     )
 
             if current_page < last_page:
@@ -107,14 +115,14 @@ class ZapMapsSpider(scrapy.Spider):
             for i in range(0, 10):
                 int_lat, int_long = int(float(latitude)), int(float(longitude))
                 low_lvl_lat = f'{int_lat}.{i}0'
-                neg_adjusted = int_long
+                neg_adjusted_long = int_long
                 if int_long < 0:
                     if int_long == -1:
-                        # At -1, longitude filters will be from -1.00 to -0.90 with -1.0 being exclusive
+                        # At -1, longitude filter results will be from -1.00 to -0.90 with -1.0 being exclusive
                         # Since we can't sign the int 0 set neg_adjusted as a string -0
-                        neg_adjusted = '-0'
+                        neg_adjusted_long = '-0'
                     else:
-                        neg_adjusted += 1
+                        neg_adjusted_long += 1
 
                     yield Request(
                         BOUNDING_BOX_FILTER_URL.format(latitude=low_lvl_lat, longitude=f'{int_long}.00', page=1),
@@ -125,7 +133,7 @@ class ZapMapsSpider(scrapy.Spider):
                     )
 
                 for j in range(1, 10):
-                    low_lvl_long = f'{neg_adjusted}.{j}0'
+                    low_lvl_long = f'{neg_adjusted_long}.{j}0'
                     yield Request(
                         BOUNDING_BOX_FILTER_URL.format(latitude=low_lvl_lat, longitude=low_lvl_long, page=1),
                         headers=self.auth_headers,
@@ -155,7 +163,7 @@ class ZapMapsSpider(scrapy.Spider):
                         CHARGE_POINT_DETAILS_ENDPOINT.format(uuid=point['uuid']),
                         headers=self.auth_headers,
                         callback=self.parse_charge_point_details,
-                        cb_kwargs={'date_created': point['created_at']}
+                        cb_kwargs={'date_created': point['created_at'], 'legacy_id': point['legacy_id']}
                     )
 
             if current_page < last_page:
@@ -167,7 +175,7 @@ class ZapMapsSpider(scrapy.Spider):
                     dont_filter=True
                 )
 
-    def parse_charge_point_details(self, response: Response, date_created: str):
+    def parse_charge_point_details(self, response: Response, date_created: str, legacy_id: int):
         details = json.loads(response.text)['data']
         if details['country'].upper() == 'GB':
             city = details['city'] or ''
@@ -184,6 +192,7 @@ class ZapMapsSpider(scrapy.Spider):
             phone_number = details['owner']['telephone_number'] or ''
 
             formatted_detail = {
+                'legacy_id': legacy_id,
                 'uuid': details['uuid'],
                 'name': details['name'],
                 'city': city,
@@ -197,6 +206,36 @@ class ZapMapsSpider(scrapy.Spider):
                 'parking_fee': parking_fee,
                 'charging_fee': charging_fee,
                 'operator_name': operator_name,
-                'location_url': f"https://www.zap-map.com/charge-points/helston/{details['uuid']}/"
+                'location_url': f"https://www.zap-map.com/charge-points/{details['uuid']}/"
             }
-            yield formatted_detail
+            yield Request(
+                CHARGE_POINT_EXTRA_DETAILS_ENDPOINT.format(legacy_id=legacy_id),
+                callback=self.parse_charge_point_extra_detail,
+                headers=self.extra_detail_headers,
+                cb_kwargs={'formatted_detail': formatted_detail}
+            )
+
+    def parse_charge_point_extra_detail(self, response, formatted_detail):
+        parsed_response = json.loads(response.text)
+
+        if parsed_response:
+            full_detail_address = None
+            extra_details = parsed_response['resources']['chargepoint_location_info']['data']['details']
+            for detail in extra_details:
+                marker_id = detail.get('marker', {}).get('id', 0)
+                if marker_id == FULL_ADDRESS_MARKER:
+                    full_detail_address = detail['description'].strip()
+                elif marker_id == LOCATION_URL_MARKER:
+                    formatted_detail['location_url'] = detail.get('link', {}).get('value', '').strip()
+
+            if full_detail_address:
+                addr_parts = full_detail_address.split('\r\n')
+                formatted_detail['state'] = addr_parts[-2]
+                formatted_detail['full_address'] = " ".join([field for field in [
+                    formatted_detail['street_address'],
+                    formatted_detail['city'],
+                    formatted_detail['state'],
+                    formatted_detail['postal_code']
+                ] if field])
+
+        yield formatted_detail
