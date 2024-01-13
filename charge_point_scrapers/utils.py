@@ -180,9 +180,7 @@ def authenticate_co_charger(callback):
 
 
 def fmt_co_charger_value(raw_value):
-    if not raw_value:
-        return ''
-    elif raw_value.strip() == 'null':
+    if not raw_value or raw_value.strip() == 'null':
         return ''
 
     return raw_value.strip() or ''
